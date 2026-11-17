@@ -1,0 +1,12 @@
+# sample_code/ is an INTENTIONALLY vulnerable demo project: it exists so CodeGuard
+# has something to detect (SQL injection, XSS, leaked secrets...). It is never
+# imported or executed by the application. Test fixtures are excluded for the
+# same reason.
+sample_code/
+tests/
+
+# dependencies and build output
+node_modules/
+frontend/dist/
+.venv/
+venv/

@@ -95,19 +95,37 @@ Default Groq model: `openai/gpt-oss-120b`. If the configured model is retired, t
 | Method | Path | Behaviour |
 |---|---|---|
 | `GET` | `/health` | `{"ok": true}` |
-| `POST` | `/classify` | `{"text": "<code snippet or issue report>"}` → `{"category", "urgency", "confidence", "issues"}` |
+| `POST` | `/classify` | `{"text": "<ticket, bug report or pasted code>"}` → `{"category", "urgency", "confidence"}` |
 
-- `category`: `security` · `slop` · `gap` · `loose_end` · `general`
+- `category`: `billing` · `technical` · `account` · `general`
 - `urgency`: `high` · `low`
 - `confidence`: 0 to 1
-- `issues`: the rules that fired, each with a recommendation
+- `code_findings`: present only when the ticket contains code
 
-`/classify` runs the same CodeGuard rule engine and Python AST checks used for full-repository scans, so a pasted snippet like `query = "SELECT ... " + user_id` is triaged as `security / high`. When the text is a plain-language report rather than code, it falls back to keyword cues. The endpoint is deterministic, needs no API key, and returns `400 invalid_json`, `400 text_required` or `413 body_size` for bad input.
+How it triages:
+- **Category:** weighted keyword and phrase evidence for each category. Ties break in the order billing, technical, account.
+- **Urgency:** explicit cues (urgent, outage, can't log in, charged twice...), unless the text says "not urgent".
+- **Confidence:** reflects both how much evidence there is and how clearly one category wins.
+- **CodeGuard layer:** when a ticket contains code, the same rule engine used for full-repository scans runs on it. Its findings come back under `code_findings`, and a critical or high security issue (SQL injection, leaked secret...) makes the ticket urgent.
+
+The endpoint is deterministic, needs no API key, and returns `400 invalid_json`, `400 text_required` or `413 body_size` for bad input. Unknown routes return `404 not_found`.
 
 ```bash
-curl -X POST localhost:8000/classify -H "Content-Type: application/json" -d '{"text": "def process_payment():\n    pass"}'
-# {"category": "gap", "urgency": "low", "confidence": 0.9, "issues": [...]}
+curl -X POST localhost:8000/classify -H "Content-Type: application/json" -d '{"text": "I was charged twice for my subscription"}'
+# {"category": "billing", "urgency": "high", "confidence": 0.92}
 ```
+
+## Production readiness
+
+| Concern | How it is handled |
+|---|---|
+| Rate limiting | `slowapi`, per client IP: 300/min by default, 20/min for repository scans (configurable via env) |
+| CI | GitHub Actions runs the backend tests and the frontend build on every push and PR |
+| Container | `Dockerfile` runs as a non-root user, with a health check and no pip cache |
+| Dependencies | `backend/requirements.txt` pins every package, transitive dependencies included; audited with pip-audit |
+| Secrets | Keys live only in the git-ignored `backend/.env`; nothing secret is logged |
+| Outbound HTTP | Every LLM / GitHub call has a timeout |
+| Intentional vulnerabilities | `sample_code/` is a deliberately vulnerable demo and is excluded from Semgrep via `.semgrepignore` |
 
 ## API
 

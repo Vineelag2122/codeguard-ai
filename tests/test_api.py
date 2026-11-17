@@ -61,14 +61,23 @@ def test_arena_health():
 
 
 @pytest.mark.parametrize("text,category,urgency", [
-    ('query = "SELECT * FROM users WHERE id = " + user_id', "security", "high"),
-    ('password = "admin123"', "security", "high"),
-    ("def process_payment():\n    pass\n", "gap", "low"),
-    ("# TODO: handle refunds properly", "loose_end", "low"),
-    ("# ... rest of the code remains the same", "slop", "low"),
-    ("Urgent: API keys leaked in a public repo, credentials exposed", "security", "high"),
-    ("Error handling is missing and there are no tests for checkout", "gap", "low"),
-    ("Hello team, hope you are well", "general", "low"),
+    # contract examples (organizer's reference fixture)
+    ("Please refund this invoice", "billing", "low"),
+    ("The screen is broken", "technical", "low"),
+    ("I forgot my password", "account", "low"),
+    ("Urgent outage", "technical", "high"),
+    ("Hello team", "general", "low"),
+    # broader wording
+    ("I was charged twice for my subscription this month", "billing", "high"),
+    ("How do I download last month's receipt?", "billing", "low"),
+    ("The app crashes every time I open settings", "technical", "low"),
+    ("Production is down for all users, fix immediately!", "technical", "high"),
+    ("I can't log in, it says my account is locked", "account", "high"),
+    ("Please change the email address on my profile", "account", "low"),
+    ("Not urgent, but the export button doesn't work", "technical", "low"),
+    ("Thanks for the great support last week", "general", "low"),
+    # CodeGuard layer: code pasted into a ticket
+    ('Login breaks: query = "SELECT * FROM users WHERE id = " + user_id', "technical", "high"),
 ])
 def test_classify_contract(text, category, urgency):
     r = client.post("/classify", json={"text": text})
@@ -89,3 +98,30 @@ def test_classify_contract(text, category, urgency):
 def test_classify_rejects_bad_input(payload, status, error):
     r = client.post("/classify", content=payload, headers={"Content-Type": "application/json"})
     assert r.status_code == status and r.json() == {"error": error}
+
+
+def test_classify_attaches_codeguard_findings():
+    r = client.post("/classify", json={"text": 'Bug in checkout: password = "admin123"'})
+    body = r.json()
+    assert body["urgency"] == "high"
+    assert any(f["rule"] == "hardcoded-secret" for f in body["code_findings"])
+
+
+@pytest.mark.parametrize("method,path", [("GET", "/nope"), ("GET", "/classify"), ("POST", "/health")])
+def test_unknown_routes_return_not_found(method, path):
+    r = client.request(method, path)
+    assert r.status_code == 404 and r.json() == {"error": "not_found"}
+
+
+def test_own_error_messages_are_kept():
+    r = client.get("/api/reports/does-not-exist")
+    assert r.status_code == 404 and "not found" in r.json()["detail"].lower()
+
+
+def test_rate_limit_returns_429():
+    main.limiter.reset()
+    try:
+        statuses = [client.get("/health").status_code for _ in range(305)]
+        assert statuses[0] == 200 and statuses[-1] == 429
+    finally:
+        main.limiter.reset()

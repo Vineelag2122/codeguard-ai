@@ -1,7 +1,7 @@
 {
   "language": "python",
   "install": "python -m pip install -r requirements.txt",
-  "test": "python -m pytest tests -q",
+  "test": "python -m pytest tests -v",
   "start": "python -m uvicorn main:app --app-dir backend --host 0.0.0.0 --port 8000",
   "port": 8000
 }

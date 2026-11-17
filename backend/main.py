@@ -15,9 +15,15 @@ load_dotenv(Path(__file__).with_name(".env"))
 import json  # noqa: E402
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile  # noqa: E402
+from fastapi.exception_handlers import http_exception_handler  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import HTMLResponse, JSONResponse, Response  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
+from slowapi import Limiter  # noqa: E402
+from slowapi.errors import RateLimitExceeded  # noqa: E402
+from slowapi.middleware import SlowAPIMiddleware  # noqa: E402
+from slowapi.util import get_remote_address  # noqa: E402
+from starlette.exceptions import HTTPException as StarletteHTTPException  # noqa: E402
 
 from scanner.agent import CodeGuardAgent  # noqa: E402
 from scanner.ai_analyzer import AIAnalyzer  # noqa: E402
@@ -36,6 +42,29 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+
+# Rate limiting (per client IP). Cheap endpoints get a generous default; repository
+# scans (clone + analysis + LLM calls) get a much tighter limit via @limiter.limit.
+limiter = Limiter(key_func=get_remote_address,
+                  default_limits=[os.getenv("CODEGUARD_RATE_LIMIT", "300/minute")])
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
+SCAN_LIMIT = os.getenv("CODEGUARD_SCAN_RATE_LIMIT", "20/minute")
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limited(request: Request, exc: RateLimitExceeded):
+    return JSONResponse({"error": "rate_limited", "detail": f"Too many requests ({exc.detail})."},
+                        status_code=429, headers={"Retry-After": "60"})
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_error(request: Request, exc: StarletteHTTPException):
+    # Unknown route or wrong method -> {"error": "not_found"} (Arena contract).
+    # Errors raised by our own endpoints keep their descriptive "detail" message.
+    if exc.status_code in (404, 405) and exc.detail in ("Not Found", "Method Not Allowed"):
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    return await http_exception_handler(request, exc)
 
 REPORTS: "OrderedDict[str, dict]" = OrderedDict()
 
@@ -88,7 +117,8 @@ async def classify(request: Request):
 # Endpoints are sync `def` on purpose: FastAPI runs them in a worker thread,
 # so long scans never block the event loop.
 @app.post("/api/scan/upload")
-def scan_upload(file: UploadFile = File(...), use_ai: bool = Form(True)):
+@limiter.limit(SCAN_LIMIT)
+def scan_upload(request: Request, file: UploadFile = File(...), use_ai: bool = Form(True)):
     if not (file.filename or "").lower().endswith(".zip"):
         raise HTTPException(400, "Please upload a .zip archive of your project.")
     with temp_workspace() as ws:
@@ -103,7 +133,8 @@ def scan_upload(file: UploadFile = File(...), use_ai: bool = Form(True)):
 
 
 @app.post("/api/scan/github")
-def scan_github(req: GithubRequest):
+@limiter.limit(SCAN_LIMIT)
+def scan_github(request: Request, req: GithubRequest):
     with temp_workspace() as ws:
         try:
             root, name = clone_github(req.url, ws)
@@ -113,7 +144,8 @@ def scan_github(req: GithubRequest):
 
 
 @app.post("/api/scan/sample")
-def scan_sample(use_ai: bool = True):
+@limiter.limit(SCAN_LIMIT)
+def scan_sample(request: Request, use_ai: bool = True):
     if not SAMPLE_DIR.is_dir():
         raise HTTPException(404, "sample_code folder not found")
     return _scan(SAMPLE_DIR, "sample_code (demo)", use_ai)

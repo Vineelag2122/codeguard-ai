@@ -68,6 +68,25 @@ This file documents how AI was used to build CodeGuard AI, and how AI is used in
 - **Verification:** simulated the grader in a fresh virtual environment by running the exact `install`, `test` and `start` commands from `arena.json`, then calling `/health` and `/classify` over HTTP.
 - **Caveat:** the hidden tests are not public, so the expected category labels are unknown. The reference app's labels (billing/technical/account) belong to a synthetic fixture, so CodeGuard uses labels that fit its own domain.
 
+### Session 5: improving the first graded result (16.8 / 100)
+- **Reading the scorecard:**
+  - Hidden tests: 4/30 passed. The categories didn't match the track's ticket-triage contract.
+  - Readiness 8.4/20, failing on:
+    - no rate limiting
+    - no CI
+    - Semgrep findings, all inside the intentionally vulnerable `sample_code/`
+    - 21 vulnerable dependency versions
+- **Changes:**
+  - `/classify` now returns the contract's ticket labels (`billing / technical / account / general`), using weighted keyword and phrase evidence, urgency cues and negation ("not urgent"). CodeGuard's rule engine still runs on any code pasted into a ticket and reports `code_findings`.
+  - Unknown routes return `404 {"error": "not_found"}`, matching the reference contract.
+  - Rate limiting with `slowapi`.
+  - GitHub Actions CI, plus a non-root `Dockerfile` with a health check.
+  - `.semgrepignore` for the deliberate demo vulnerabilities and test fixtures.
+  - Python dependencies upgraded and fully pinned (pip-audit: no known vulnerabilities).
+  - Frontend tooling upgraded to Vite 8 and PostCSS 8.5.
+- **Known remaining issue:** `picomatch` (used by Vite and Tailwind) has an advisory affecting every published version, so the frontend lockfile cannot be fully clean until upstream ships a fix.
+- **Verification:** 96 tests pass; grader re-simulated in a fresh environment (install, test, start, `/health`, `/classify`, 404).
+
 ## 3. AI inside the product (runtime)
 
 CodeGuard AI calls an LLM through any OpenAI-compatible API. The default is Groq `openai/gpt-oss-120b`; OpenAI and local Ollama are also supported.
