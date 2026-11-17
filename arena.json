@@ -1,30 +1,21 @@
 {
-  "name": "CodeGuard AI",
-  "tagline": "Architecture-agnostic AI agent that finds security flaws, AI slop, coding gaps and loose ends in any repo.",
-  "description": "An AI agent that scans any codebase (any language or stack) for security vulnerabilities, AI-generated slop, coding gaps and loose ends, and reports each issue with file, line, severity, explanation and a suggested fix.",
-  "challenge": "Mycrobo: a simple agent for security and pulling slop as well as coding gaps and loose ends which is architecture agnostic",
-  "team": ["Vineela Gujjarlapudi"],
-  "repository": "",
-  "demo_url": "",
-  "tech_stack": ["Python", "FastAPI", "React", "Vite", "Tailwind CSS", "Groq (openai/gpt-oss-120b)", "Bandit", "Python AST"],
-  "ai_tools_used": ["Claude Code (Claude Opus 5.5)", "Groq API"],
-  "features": [
-    "Scan a ZIP upload or a public GitHub URL",
-    "Security: secrets, SQL/command/code injection, insecure deserialization, XSS, path traversal, SSRF, weak crypto, disabled TLS/JWT verification",
-    "AI slop: leftover LLM text, duplicated logic, unused imports, debug leftovers, suppressed type checks",
-    "Coding gaps: empty/unimplemented functions, swallowed exceptions, missing timeouts, missing tests",
-    "Loose ends: TODO/FIXME, simulated logic, hardcoded localhost, unpinned dependencies",
-    "LLM triage of false positives, deep review of risky files and executive summary",
-    "Health score (0-100, grade A-F), agent trace, HTML/JSON export, CLI CI gate"
+  "schema_version": 1,
+  "title": "CodeGuard AI: Architecture-Agnostic Security & Code Quality Agent",
+  "short_description": "An AI agent that scans any codebase (any language or stack) for security vulnerabilities, AI-generated slop, coding gaps and loose ends, and reports each issue with file, line, severity, explanation and a suggested fix.",
+  "track": "AI triage",
+  "repo": "https://github.com/Vineelag2122/codeguard-ai",
+  "demo_links": [
+    "https://drive.google.com/file/d/1G8mfDgrykk4bSAaCRkGbo7zygwff8E-i/view?usp=sharing"
   ],
-  "setup": {
-    "backend": "cd backend && python -m venv .venv && .venv\\Scripts\\activate && pip install -r requirements.txt && uvicorn main:app --port 8000",
-    "frontend": "cd frontend && npm install && npm run dev",
-    "env": "Optional: set GROQ_API_KEY in backend/.env (see backend/.env.example) to enable the AI layer",
-    "tests": "backend\\.venv\\Scripts\\python -m pytest tests -q"
-  },
-  "docs": {
-    "readme": "README.md",
-    "ai_log": "AI_LOG.md"
-  }
+  "github_handle": "Vineelag2122",
+  "readme": "README.md",
+  "ai_log": "AI_LOG.md",
+
+  "name": "CodeGuard AI",
+  "description": "An AI agent that scans any codebase (any language or stack) for security vulnerabilities, AI-generated slop, coding gaps and loose ends, and reports each issue with file, line, severity, explanation and a suggested fix.",
+  "repository": "https://github.com/Vineelag2122/codeguard-ai",
+  "demo_url": "https://drive.google.com/file/d/1G8mfDgrykk4bSAaCRkGbo7zygwff8E-i/view?usp=sharing",
+  "team": ["Vineela Gujjarlapudi"],
+  "tech_stack": ["Python", "FastAPI", "React", "Vite", "Tailwind CSS", "Groq (openai/gpt-oss-120b)", "Bandit", "Python AST"],
+  "ai_tools_used": ["Claude Code (Claude Opus 5.5)", "Groq API"]
 }
