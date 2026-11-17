@@ -52,3 +52,40 @@ def test_upload_rejects_non_zip():
 def test_github_rejects_bad_url():
     r = client.post("/api/scan/github", json={"url": "https://example.com/x/y", "use_ai": False})
     assert r.status_code == 400
+
+
+# ---------------------------------------------------------------- Arena AI-triage contract
+def test_arena_health():
+    r = client.get("/health")
+    assert r.status_code == 200 and r.json() == {"ok": True}
+
+
+@pytest.mark.parametrize("text,category,urgency", [
+    ('query = "SELECT * FROM users WHERE id = " + user_id', "security", "high"),
+    ('password = "admin123"', "security", "high"),
+    ("def process_payment():\n    pass\n", "gap", "low"),
+    ("# TODO: handle refunds properly", "loose_end", "low"),
+    ("# ... rest of the code remains the same", "slop", "low"),
+    ("Urgent: API keys leaked in a public repo, credentials exposed", "security", "high"),
+    ("Error handling is missing and there are no tests for checkout", "gap", "low"),
+    ("Hello team, hope you are well", "general", "low"),
+])
+def test_classify_contract(text, category, urgency):
+    r = client.post("/classify", json={"text": text})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["category"] == category
+    assert body["urgency"] == urgency
+    assert 0 <= body["confidence"] <= 1
+
+
+@pytest.mark.parametrize("payload,status,error", [
+    (b"not json", 400, "invalid_json"),
+    (b'{"text": "   "}', 400, "text_required"),
+    (b'{"text": 5}', 400, "text_required"),
+    (b"[1, 2]", 400, "text_required"),
+    (b'{"text": "' + b"a" * 17000 + b'"}', 413, "body_size"),
+])
+def test_classify_rejects_bad_input(payload, status, error):
+    r = client.post("/classify", content=payload, headers={"Content-Type": "application/json"})
+    assert r.status_code == status and r.json() == {"error": error}

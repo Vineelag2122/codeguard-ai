@@ -55,6 +55,19 @@ This file documents how AI was used to build CodeGuard AI, and how AI is used in
 - Added `.claude/` (local, machine-specific Claude Code config) to `.gitignore`.
 - Drafted submission text, `arena.json` and this log.
 
+### Session 4: matching the Arena grader
+- **Problem:** submission kept failing with `invalid_arena_json`. No public schema existed, and guessed formats failed.
+- **Resolution:** the organizer shared a reference repository (`tirthmoxb/arena-smoke-test`). It showed that:
+  - `arena.json` is a run contract with exactly `language`, `install`, `test`, `start` and `port`.
+  - The AI-triage track exercises `GET /health` and `POST /classify`.
+- **Changes:**
+  - `arena.json` rewritten to the 5-field contract, plus a root `requirements.txt` that points at `backend/requirements.txt`.
+  - New `backend/scanner/triage.py`: classifies one snippet or issue report into `security / slop / gap / loose_end / general` with urgency and confidence. It reuses the existing rule engine and Python AST checks, with a keyword fallback for prose.
+  - `GET /health` and `POST /classify` added to `main.py`, with input validation mirroring the reference contract (`invalid_json`, `text_required`, `body_size`).
+  - 14 new tests (84 total).
+- **Verification:** simulated the grader in a fresh virtual environment by running the exact `install`, `test` and `start` commands from `arena.json`, then calling `/health` and `/classify` over HTTP.
+- **Caveat:** the hidden tests are not public, so the expected category labels are unknown. The reference app's labels (billing/technical/account) belong to a synthetic fixture, so CodeGuard uses labels that fit its own domain.
+
 ## 3. AI inside the product (runtime)
 
 CodeGuard AI calls an LLM through any OpenAI-compatible API. The default is Groq `openai/gpt-oss-120b`; OpenAI and local Ollama are also supported.

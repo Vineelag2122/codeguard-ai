@@ -12,14 +12,17 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).with_name(".env"))
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile  # noqa: E402
+import json  # noqa: E402
+
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
-from fastapi.responses import HTMLResponse, Response  # noqa: E402
+from fastapi.responses import HTMLResponse, JSONResponse, Response  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 
 from scanner.agent import CodeGuardAgent  # noqa: E402
 from scanner.ai_analyzer import AIAnalyzer  # noqa: E402
 from scanner.report import render_html  # noqa: E402
+from scanner.triage import classify_text  # noqa: E402
 from workspace import WorkspaceError, clone_github, safe_extract_zip, save_upload, temp_workspace  # noqa: E402
 
 SAMPLE_DIR = Path(__file__).resolve().parent.parent / "sample_code"
@@ -56,6 +59,30 @@ class GithubRequest(BaseModel):
 @app.get("/api/health")
 def health():
     return {"status": "ok", "ai": AIAnalyzer().info(), "sample_available": SAMPLE_DIR.is_dir()}
+
+
+# ---------------------------------------------------------------- Arena "AI triage" contract
+MAX_CLASSIFY_BYTES = 16384
+
+
+@app.get("/health")
+def arena_health():
+    return {"ok": True}
+
+
+@app.post("/classify")
+async def classify(request: Request):
+    """Triage one snippet or issue report: {"text": "..."} -> {category, urgency, confidence}."""
+    body = await request.body()
+    if not 1 <= len(body) <= MAX_CLASSIFY_BYTES:
+        return JSONResponse({"error": "body_size"}, status_code=413)
+    try:
+        data = json.loads(body)
+    except (ValueError, UnicodeError):
+        return JSONResponse({"error": "invalid_json"}, status_code=400)
+    if not isinstance(data, dict) or not isinstance(data.get("text"), str) or not data["text"].strip():
+        return JSONResponse({"error": "text_required"}, status_code=400)
+    return classify_text(data["text"])
 
 
 # Endpoints are sync `def` on purpose: FastAPI runs them in a worker thread,

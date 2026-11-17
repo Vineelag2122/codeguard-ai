@@ -88,6 +88,27 @@ Default Groq model: `openai/gpt-oss-120b`. If the configured model is retired, t
 
 > Privacy: with AI enabled, code snippets around findings and the top 2 riskiest files are sent to the configured provider. Use a local model (Ollama) for private code.
 
+## Arena "AI triage" contract
+
+`arena.json` declares how the Mycrobo Arena grader installs, tests and starts the project (`python -m uvicorn main:app --app-dir backend --port 8000`).
+
+| Method | Path | Behaviour |
+|---|---|---|
+| `GET` | `/health` | `{"ok": true}` |
+| `POST` | `/classify` | `{"text": "<code snippet or issue report>"}` → `{"category", "urgency", "confidence", "issues"}` |
+
+- `category`: `security` · `slop` · `gap` · `loose_end` · `general`
+- `urgency`: `high` · `low`
+- `confidence`: 0 to 1
+- `issues`: the rules that fired, each with a recommendation
+
+`/classify` runs the same CodeGuard rule engine and Python AST checks used for full-repository scans, so a pasted snippet like `query = "SELECT ... " + user_id` is triaged as `security / high`. When the text is a plain-language report rather than code, it falls back to keyword cues. The endpoint is deterministic, needs no API key, and returns `400 invalid_json`, `400 text_required` or `413 body_size` for bad input.
+
+```bash
+curl -X POST localhost:8000/classify -H "Content-Type: application/json" -d '{"text": "def process_payment():\n    pass"}'
+# {"category": "gap", "urgency": "low", "confidence": 0.9, "issues": [...]}
+```
+
 ## API
 
 | Method | Path | Description |
