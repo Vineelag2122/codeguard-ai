@@ -1,0 +1,9 @@
+app:
+  name: demo-payments
+  debug: true
+database:
+  host: db.internal
+  user: admin
+  password: P@ssw0rd2024
+smtp:
+  api_key: ${SMTP_API_KEY}

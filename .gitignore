@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# Node
+node_modules/
+frontend/dist/
+
+# Secrets
+.env
+.env.*
+!.env.example
+# the demo project intentionally ships a fake .env to show detection
+!sample_code/.env
+
+# Claude Code local settings (machine-specific)
+.claude/
+
+# Reports / OS
+codeguard-*.html
+codeguard-*.json
+.DS_Store
+Thumbs.db
